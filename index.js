@@ -26,8 +26,43 @@ async function run() {
     // Connect the client to the server
     await client.connect();
     
+    // Database and Collections
+    const database = client.db("skillswapDB");
+    const usersCollection = database.collection("users");
+    const tasksCollection = database.collection("tasks");
+    const proposalsCollection = database.collection("proposals");
+    const paymentsCollection = database.collection("payments");
+    const reviewsCollection = database.collection("reviews");
+
+    // Seed Hardcoded Admin Account if not exists
+    const seedAdmin = async () => {
+      const adminEmail = "admin1@taskhive.com";
+      const existingAdmin = await usersCollection.findOne({ email: adminEmail });
+      
+      if (!existingAdmin) {
+        const adminUser = {
+          name: "TaskHive Admin",
+          email: adminEmail,
+          image: "https://i.ibb.co/6rW8pG7/admin-avatar.png",
+          role: "admin",
+          skills: ["System Administration", "Platform Management"],
+          bio: "Platform Administrator for SkillSwap.",
+          isBlocked: false,
+          createdAt: new Date()
+        };
+        await usersCollection.insertOne(adminUser);
+        console.log("Admin account seeded successfully: admin1@taskhive.com");
+      }
+    };
+
+    await seedAdmin();
+
+    // Register user routes inside run function after collections are initialized
+    const userRoutes = require('./routes/userRoutes')(usersCollection);
+    app.use('/api/users', userRoutes);
+
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    await database.command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
@@ -37,7 +72,6 @@ async function run() {
 run().catch(dir => console.error(dir));
 
 app.get('/', (req, res) => {
-  res.log = "SkillSwap Server is running!";
   res.send("SkillSwap Server is running successfully!");
 });
 

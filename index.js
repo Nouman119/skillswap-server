@@ -57,22 +57,23 @@ async function run() {
 
     await seedAdmin();
 
-    // Register user routes inside run function after collections are initialized
+    // Register user routes
     const userRoutes = require('./routes/userRoutes')(usersCollection);
     app.use('/api/users', userRoutes);
 
-    const taskRoutes = require('./routes/taskRoutes')(tasksCollection, proposalsCollection);
+    // Register task routes with all required collections
+    const taskRoutes = require('./routes/taskRoutes')(tasksCollection, proposalsCollection, paymentsCollection);
     app.use('/api/tasks', taskRoutes);
 
-    // Send a ping to confirm a successful connection
+    // Ping to confirm a successful connection
     await database.command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+  } catch (error) {
+    console.error("Database connection error:", error);
   }
 }
-run().catch(dir => console.error(dir));
+
+run().catch(console.dir);
 
 app.get('/', (req, res) => {
   res.send("SkillSwap Server is running successfully!");

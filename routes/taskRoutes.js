@@ -1,7 +1,8 @@
 const express = require('express');
 const { ObjectId } = require('mongodb');
 
-function taskRoutes(tasksCollection, proposalsCollection) {
+// Pass paymentsCollection as the 3rd argument
+function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
   const router = express.Router();
 
   // Get client dashboard statistics and tasks by client email
@@ -18,7 +19,6 @@ function taskRoutes(tasksCollection, proposalsCollection) {
       const openTasks = tasks.filter(t => t.status === 'open').length;
       const inProgressTasks = tasks.filter(t => t.status === 'in-progress').length;
       
-      // Calculate total spent from completed/in-progress paid tasks
       const totalSpent = tasks
         .filter(t => t.status === 'completed' || t.status === 'in-progress')
         .reduce((sum, t) => sum + Number(t.budget || 0), 0);
@@ -36,34 +36,34 @@ function taskRoutes(tasksCollection, proposalsCollection) {
   });
 
   // Create a new task post
-router.post('/', async (req, res) => {
-  try {
-    const { title, category, description, budget, deadline, clientEmail, clientName } = req.body;
-    
-    if (!title || !category || !budget || !clientEmail) {
-      return res.status(400).send({ error: "Required fields are missing" });
+  router.post('/', async (req, res) => {
+    try {
+      const { title, category, description, budget, deadline, clientEmail, clientName } = req.body;
+      
+      if (!title || !category || !budget || !clientEmail) {
+        return res.status(400).send({ error: "Required fields are missing" });
+      }
+
+      const newTask = {
+        title,
+        category,
+        description,
+        budget: Number(budget),
+        deadline,
+        clientEmail,
+        clientName: clientName || "Client",
+        status: "open",
+        createdAt: new Date()
+      };
+
+      const result = await tasksCollection.insertOne(newTask);
+      res.status(201).send({ success: true, insertedId: result.insertedId });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
     }
+  });
 
-    const newTask = {
-      title,
-      category,
-      description,
-      budget: Number(budget),
-      deadline,
-      clientEmail,
-      clientName: clientName || "Client",
-      status: "open", // Default state text: open
-      createdAt: new Date()
-    };
-
-    const result = await tasksCollection.insertOne(newTask);
-    res.status(201).send({ success: true, insertedId: result.insertedId });
-  } catch (error) {
-    res.status(500).send({ error: error.message });
-  }
-});
-
-    // Get all tasks posted by a specific client
+  // Get all tasks posted by a specific client
   router.get('/my-tasks', async (req, res) => {
     try {
       const email = req.query.email;
@@ -123,6 +123,82 @@ router.post('/', async (req, res) => {
 
       const result = await tasksCollection.deleteOne({ _id: new ObjectId(id) });
       res.send({ success: true, deletedCount: result.deletedCount });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // Get all proposals for a specific client's tasks
+  router.get('/client-proposals', async (req, res) => {
+    try {
+      const email = req.query.email;
+      if (!email) return res.status(400).send({ error: "Client email is required" });
+
+      const clientTasks = await tasksCollection.find({ clientEmail: email }).toArray();
+      const taskIds = clientTasks.map(t => t._id.toString());
+
+      const proposals = await proposalsCollection.find({ taskId: { $in: taskIds } }).toArray();
+      res.send(proposals);
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // Reject a proposal
+  router.patch('/proposals/:id/reject', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await proposalsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: "rejected", updatedAt: new Date() } }
+      );
+      res.send({ success: true, modifiedCount: result.modifiedCount });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // Accept proposal & complete payment checkout flow
+  router.post('/proposals/:id/accept-and-pay', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { transactionId } = req.body;
+
+      const proposal = await proposalsCollection.findOne({ _id: new ObjectId(id) });
+      if (!proposal) return res.status(404).send({ error: "Proposal not found" });
+
+      const existingAccepted = await proposalsCollection.findOne({
+        taskId: proposal.taskId,
+        status: "accepted"
+      });
+      if (existingAccepted) {
+        return res.status(400).send({ error: "A proposal has already been accepted for this task" });
+      }
+
+      await proposalsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: "accepted", paidAt: new Date() } }
+      );
+
+      await tasksCollection.updateOne(
+        { _id: new ObjectId(proposal.taskId) },
+        { $set: { status: "in-progress", acceptedProposalId: id, updatedAt: new Date() } }
+      );
+
+      // Fixed: using paymentsCollection directly
+      if (paymentsCollection) {
+        await paymentsCollection.insertOne({
+          taskId: proposal.taskId,
+          proposalId: id,
+          amount: proposal.budgetPrice || proposal.price,
+          clientEmail: proposal.clientEmail,
+          freelancerEmail: proposal.freelancerEmail,
+          transactionId: transactionId || `TXN_${Date.now()}`,
+          createdAt: new Date()
+        });
+      }
+
+      res.send({ success: true, message: "Payment processed and task is now in-progress" });
     } catch (error) {
       res.status(500).send({ error: error.message });
     }

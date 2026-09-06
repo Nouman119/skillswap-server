@@ -399,6 +399,51 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
+  // Browse Tasks Pagination & Filtering
+  // ----------------------------------------------------
+  router.get('/open-tasks', async (req, res) => {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 9; // Max 9 documents per query limit
+      const search = req.query.search || "";
+      const category = req.query.category || "";
+
+      let query = { status: "open" };
+
+      // Apply title text search filter if provided
+      if (search) {
+        query.title = { $regex: search, $options: "i" };
+      }
+
+      // Apply category filter if provided
+      if (category && category !== "All") {
+        query.category = category;
+      }
+
+      const skip = (page - 1) * limit;
+
+      const tasks = await tasksCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+
+      const totalTasks = await tasksCollection.countDocuments(query);
+      const totalPages = Math.ceil(totalTasks / limit);
+
+      res.send({
+        tasks,
+        currentPage: page,
+        totalPages,
+        totalTasks,
+      });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
   return router;
 }
 

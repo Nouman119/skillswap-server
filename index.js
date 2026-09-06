@@ -69,6 +69,10 @@ async function run() {
     const paymentRoutes = require('./routes/paymentRoutes')(tasksCollection, proposalsCollection, paymentsCollection);
     app.use('/api/payments', paymentRoutes);
 
+    // Register review routes
+    const reviewRoutes = require('./routes/reviewRoutes')(reviewsCollection, tasksCollection);
+    app.use('/api/reviews', reviewRoutes);
+
     // Ping to confirm a successful connection
     await database.command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");

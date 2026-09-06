@@ -204,6 +204,115 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
+  // Freelancer Dashboard Statistics Endpoint
+  // ----------------------------------------------------
+  router.get('/freelancer-stats', async (req, res) => {
+    try {
+      const email = req.query.email;
+      if (!email) {
+        return res.status(400).send({ error: "Freelancer email is required" });
+      }
+
+      const proposals = await proposalsCollection.find({ freelancerEmail: email }).toArray();
+
+      const totalProposals = proposals.length;
+      const pendingProposals = proposals.filter(p => p.status === 'pending').length;
+      const acceptedProposals = proposals.filter(p => p.status === 'accepted').length;
+
+      // Calculate total earnings from completed projects
+      const acceptedProposalIds = proposals.filter(p => p.status === 'accepted').map(p => p._id.toString());
+      const completedTasks = await tasksCollection.find({
+        acceptedProposalId: { $in: acceptedProposalIds },
+        status: 'completed'
+      }).toArray();
+
+      const totalEarnings = completedTasks.reduce((sum, t) => sum + Number(t.budget || 0), 0);
+
+      res.send({
+        totalProposals,
+        pendingProposals,
+        acceptedProposals,
+        totalEarnings
+      });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Browse Open Tasks
+  // ----------------------------------------------------
+  router.get('/open-tasks', async (req, res) => {
+    try {
+      const openTasks = await tasksCollection.find({ status: "open" }).sort({ createdAt: -1 }).toArray();
+      res.send(openTasks);
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Submit a Proposal
+  // ----------------------------------------------------
+  router.post('/submit-proposal', async (req, res) => {
+    try {
+      const { taskId, taskTitle, freelancerEmail, freelancerName, budgetPrice, completionDays, message } = req.body;
+
+      if (!taskId || !freelancerEmail || !budgetPrice || !completionDays || !message) {
+        return res.status(400).send({ error: "All input fields are required" });
+      }
+
+      // Check if freelancer already submitted a proposal for this task
+      const existingProposal = await proposalsCollection.findOne({
+        taskId,
+        freelancerEmail
+      });
+
+      if (existingProposal) {
+        return res.status(400).send({ error: "You have already submitted a proposal for this task" });
+      }
+
+      const newProposal = {
+        taskId,
+        taskTitle: taskTitle || "Task Application",
+        freelancerEmail,
+        freelancerName: freelancerName || "Freelancer",
+        budgetPrice: Number(budgetPrice),
+        completionDays: Number(completionDays),
+        message,
+        status: "pending", // Default state text: pending
+        createdAt: new Date()
+      };
+
+      const result = await proposalsCollection.insertOne(newProposal);
+      res.status(201).send({ success: true, insertedId: result.insertedId });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // ----------------------------------------------------
+  // SECTION 08 - Block 3: My Proposals List
+  // ----------------------------------------------------
+  router.get('/my-proposals', async (req, res) => {
+    try {
+      const email = req.query.freelancerEmail;
+      if (!email) {
+        return res.status(400).send({ error: "Freelancer email is required" });
+      }
+
+      const proposals = await proposalsCollection
+        .find({ freelancerEmail: email })
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      res.send(proposals);
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
   return router;
 }
 

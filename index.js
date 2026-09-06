@@ -25,7 +25,7 @@ async function run() {
   try {
     // Connect the client to the server
     await client.connect();
-    
+
     // Database and Collections
     const database = client.db("skillswapDB");
     const usersCollection = database.collection("users");
@@ -38,7 +38,7 @@ async function run() {
     const seedAdmin = async () => {
       const adminEmail = "admin1@taskhive.com";
       const existingAdmin = await usersCollection.findOne({ email: adminEmail });
-      
+
       if (!existingAdmin) {
         const adminUser = {
           name: "TaskHive Admin",
@@ -60,6 +60,9 @@ async function run() {
     // Register user routes inside run function after collections are initialized
     const userRoutes = require('./routes/userRoutes')(usersCollection);
     app.use('/api/users', userRoutes);
+
+    const taskRoutes = require('./routes/taskRoutes')(tasksCollection, proposalsCollection);
+    app.use('/api/tasks', taskRoutes);
 
     // Send a ping to confirm a successful connection
     await database.command({ ping: 1 });

@@ -293,7 +293,7 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
   });
 
   // ----------------------------------------------------
-  // SECTION 08 - Block 3: My Proposals List
+  //  My Proposals List
   // ----------------------------------------------------
   router.get('/my-proposals', async (req, res) => {
     try {
@@ -308,6 +308,92 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
         .toArray();
 
       res.send(proposals);
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Freelancer Active & Completed Projects
+  // ----------------------------------------------------
+  router.get('/freelancer-projects', async (req, res) => {
+    try {
+      const email = req.query.freelancerEmail;
+      if (!email) {
+        return res.status(400).send({ error: "Freelancer email is required" });
+      }
+
+      // Find accepted proposals for this freelancer
+      const acceptedProposals = await proposalsCollection.find({
+        freelancerEmail: email,
+        status: "accepted"
+      }).toArray();
+
+      const taskIds = acceptedProposals.map(p => new ObjectId(p.taskId));
+
+      // Find matched active or completed tasks
+      const projects = await tasksCollection.find({
+        _id: { $in: taskIds },
+        status: { $in: ["in-progress", "completed"] }
+      }).sort({ updatedAt: -1 }).toArray();
+
+      res.send(projects);
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Submit Deliverable & Complete Task
+  // ----------------------------------------------------
+  router.patch('/:id/submit-deliverable', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { deliverable_url } = req.body;
+
+      if (!deliverable_url) {
+        return res.status(400).send({ error: "Deliverable URL is required" });
+      }
+
+      const result = await tasksCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            status: "completed",
+            deliverable_url,
+            completedAt: new Date(),
+            updatedAt: new Date()
+          }
+        }
+      );
+
+      res.send({ success: true, modifiedCount: result.modifiedCount });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Freelancer Earnings Breakdown
+  // ----------------------------------------------------
+  router.get('/my-earnings', async (req, res) => {
+    try {
+      const email = req.query.freelancerEmail;
+      if (!email) return res.status(400).send({ error: "Freelancer email is required" });
+
+      const acceptedProposals = await proposalsCollection.find({
+        freelancerEmail: email,
+        status: "accepted"
+      }).toArray();
+
+      const taskIds = acceptedProposals.map(p => new ObjectId(p.taskId));
+
+      const earnings = await tasksCollection.find({
+        _id: { $in: taskIds },
+        status: "completed"
+      }).sort({ completedAt: -1 }).toArray();
+
+      res.send(earnings);
     } catch (error) {
       res.status(500).send({ error: error.message });
     }

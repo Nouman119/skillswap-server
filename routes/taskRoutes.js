@@ -649,6 +649,101 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
+  // Admin Dashboard Overview Statistics
+  // ----------------------------------------------------
+  router.get("/admin/stats", async (req, res) => {
+    try {
+      const usersCollection = db.collection("users");
+      const tasksCollection = db.collection("tasks");
+      const paymentsCollection = db.collection("payments");
+
+      const totalUsers = await usersCollection.countDocuments();
+      const totalTasks = await tasksCollection.countDocuments();
+      const activeTasks = await tasksCollection.countDocuments({ status: "in-progress" });
+
+      const allPayments = await paymentsCollection.find().toArray();
+      const totalRevenue = allPayments.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+
+      res.status(200).json({
+        totalUsers,
+        totalTasks,
+        totalRevenue,
+        activeTasks,
+      });
+    } catch (error) {
+      console.error("Error fetching admin metrics:", error);
+      res.status(500).json({ error: "Failed to fetch admin stats" });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Manage Users - Get All Users
+  // ----------------------------------------------------
+  router.get("/admin/users", async (req, res) => {
+    try {
+      const usersCollection = db.collection("users");
+      const users = await usersCollection.find().sort({ createdAt: -1 }).toArray();
+      res.status(200).json(users);
+    } catch (error) {
+      console.error("Error fetching user list:", error);
+      res.status(500).json({ error: "Failed to fetch platform accounts" });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Manage Users - Block / Unblock User Status
+  // ----------------------------------------------------
+  router.patch("/admin/users/:id/status", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isBlocked } = req.body;
+      const usersCollection = db.collection("users");
+
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { isBlocked: Boolean(isBlocked), updatedAt: new Date() } }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.status(200).json({ message: "User status updated successfully" });
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      res.status(500).json({ error: "Failed to update user status" });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Manage Tasks - Get All System Tasks
+  // ----------------------------------------------------
+  router.get("/admin/tasks", async (req, res) => {
+    try {
+      const tasksCollection = db.collection("tasks");
+      const tasks = await tasksCollection.find().sort({ createdAt: -1 }).toArray();
+      res.status(200).json(tasks);
+    } catch (error) {
+      console.error("Error fetching system tasks:", error);
+      res.status(500).json({ error: "Failed to fetch tasks" });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Transactions History View - Get All Payments
+  // ----------------------------------------------------
+  router.get("/admin/transactions", async (req, res) => {
+    try {
+      const paymentsCollection = db.collection("payments");
+      const transactions = await paymentsCollection.find().sort({ createdAt: -1 }).toArray();
+      res.status(200).json(transactions);
+    } catch (error) {
+      console.error("Error fetching payment logs:", error);
+      res.status(500).json({ error: "Failed to fetch transaction records" });
+    }
+  });
+
   return router;
 }
 

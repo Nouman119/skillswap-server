@@ -5,7 +5,9 @@ const { ObjectId } = require('mongodb');
 function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
   const router = express.Router();
 
+  // ----------------------------------------------------
   // Get client dashboard statistics and tasks by client email
+  // ----------------------------------------------------
   router.get('/client-stats', async (req, res) => {
     try {
       const email = req.query.email;
@@ -35,7 +37,9 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
   // Create a new task post
+  // ----------------------------------------------------
   router.post('/', async (req, res) => {
     try {
       const { title, category, description, budget, deadline, clientEmail, clientName } = req.body;
@@ -63,7 +67,9 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
   // Get all tasks posted by a specific client
+  // ----------------------------------------------------
   router.get('/my-tasks', async (req, res) => {
     try {
       const email = req.query.email;
@@ -76,7 +82,9 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
   // Update task details (only if status is still 'open')
+  // ----------------------------------------------------
   router.patch('/:id', async (req, res) => {
     try {
       const { id } = req.params;
@@ -107,7 +115,9 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
   // Delete a task (only if no accepted proposal exists)
+  // ----------------------------------------------------
   router.delete('/:id', async (req, res) => {
     try {
       const { id } = req.params;
@@ -128,7 +138,9 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
   // Get all proposals for a specific client's tasks
+  // ----------------------------------------------------
   router.get('/client-proposals', async (req, res) => {
     try {
       const email = req.query.email;
@@ -144,7 +156,9 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
   // Reject a proposal
+  // ----------------------------------------------------
   router.patch('/proposals/:id/reject', async (req, res) => {
     try {
       const { id } = req.params;
@@ -158,7 +172,9 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
   // Accept proposal & complete payment checkout flow
+  // ----------------------------------------------------
   router.post('/proposals/:id/accept-and-pay', async (req, res) => {
     try {
       const { id } = req.params;
@@ -185,7 +201,6 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
         { $set: { status: "in-progress", acceptedProposalId: id, updatedAt: new Date() } }
       );
 
-      // Fixed: using paymentsCollection directly
       if (paymentsCollection) {
         await paymentsCollection.insertOne({
           taskId: proposal.taskId,
@@ -220,7 +235,6 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
       const pendingProposals = proposals.filter(p => p.status === 'pending').length;
       const acceptedProposals = proposals.filter(p => p.status === 'accepted').length;
 
-      // Calculate total earnings from completed projects
       const acceptedProposalIds = proposals.filter(p => p.status === 'accepted').map(p => p._id.toString());
       const completedTasks = await tasksCollection.find({
         acceptedProposalId: { $in: acceptedProposalIds },
@@ -241,18 +255,6 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
   });
 
   // ----------------------------------------------------
-  // Browse Open Tasks
-  // ----------------------------------------------------
-  router.get('/open-tasks', async (req, res) => {
-    try {
-      const openTasks = await tasksCollection.find({ status: "open" }).sort({ createdAt: -1 }).toArray();
-      res.send(openTasks);
-    } catch (error) {
-      res.status(500).send({ error: error.message });
-    }
-  });
-
-  // ----------------------------------------------------
   // Submit a Proposal
   // ----------------------------------------------------
   router.post('/submit-proposal', async (req, res) => {
@@ -263,7 +265,6 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
         return res.status(400).send({ error: "All input fields are required" });
       }
 
-      // Check if freelancer already submitted a proposal for this task
       const existingProposal = await proposalsCollection.findOne({
         taskId,
         freelancerEmail
@@ -281,7 +282,7 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
         budgetPrice: Number(budgetPrice),
         completionDays: Number(completionDays),
         message,
-        status: "pending", // Default state text: pending
+        status: "pending",
         createdAt: new Date()
       };
 
@@ -293,7 +294,7 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
   });
 
   // ----------------------------------------------------
-  //  My Proposals List
+  // My Proposals List
   // ----------------------------------------------------
   router.get('/my-proposals', async (req, res) => {
     try {
@@ -323,7 +324,6 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
         return res.status(400).send({ error: "Freelancer email is required" });
       }
 
-      // Find accepted proposals for this freelancer
       const acceptedProposals = await proposalsCollection.find({
         freelancerEmail: email,
         status: "accepted"
@@ -331,7 +331,6 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
 
       const taskIds = acceptedProposals.map(p => new ObjectId(p.taskId));
 
-      // Find matched active or completed tasks
       const projects = await tasksCollection.find({
         _id: { $in: taskIds },
         status: { $in: ["in-progress", "completed"] }
@@ -400,23 +399,21 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
   });
 
   // ----------------------------------------------------
-  // Browse Tasks Pagination & Filtering
+  // Browse Open Tasks Pagination & Filtering
   // ----------------------------------------------------
   router.get('/open-tasks', async (req, res) => {
     try {
       const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 9; // Max 9 documents per query limit
+      const limit = parseInt(req.query.limit) || 9;
       const search = req.query.search || "";
       const category = req.query.category || "";
 
       let query = { status: "open" };
 
-      // Apply title text search filter if provided
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
 
-      // Apply category filter if provided
       if (category && category !== "All") {
         query.category = category;
       }
@@ -441,6 +438,22 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
       });
     } catch (error) {
       res.status(500).send({ error: error.message });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Get latest featured tasks for home page
+  // ----------------------------------------------------
+  router.get("/latest-tasks", async (req, res) => {
+    try {
+      const latestTasks = await tasksCollection
+        .find({ status: "open" })
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .toArray();
+      res.status(200).json(latestTasks);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch latest tasks" });
     }
   });
 

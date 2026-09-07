@@ -457,6 +457,198 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
+  // SECTION 08: Freelancer Dashboard Statistics API
+  // ----------------------------------------------------
+  router.get("/freelancer-stats", async (req, res) => {
+    try {
+      const email = req.query.email || "freelancer@skillswap.com";
+      const proposalsCollection = db.collection("proposals");
+      const tasksCollection = db.collection("tasks");
+
+      const freelancerProposals = await proposalsCollection.find({ freelancerEmail: email }).toArray();
+
+      const totalProposals = freelancerProposals.length;
+      const pendingProposals = freelancerProposals.filter((p) => p.status === "pending").length;
+      const acceptedProposals = freelancerProposals.filter((p) => p.status === "accepted").length;
+
+      // Calculate total earnings from completed tasks assigned to this freelancer
+      const completedTasks = await tasksCollection.find({
+        freelancerEmail: email,
+        status: "completed",
+      }).toArray();
+
+      const totalEarnings = completedTasks.reduce((sum, task) => sum + (Number(task.budget) || 0), 0);
+
+      res.status(200).json({
+        totalProposals,
+        pendingProposals,
+        acceptedProposals,
+        totalEarnings,
+      });
+    } catch (error) {
+      console.error("Error fetching freelancer stats:", error);
+      res.status(500).json({ error: "Failed to fetch freelancer dashboard statistics" });
+    }
+  });
+
+  // ----------------------------------------------------
+  // SECTION 08: Submit Proposal to a Task
+  // ----------------------------------------------------
+  router.post("/proposals", async (req, res) => {
+    try {
+      const { taskId, freelancerEmail, freelancerName, budgetPrice, completionDays, message } = req.body;
+      const proposalsCollection = db.collection("proposals");
+
+      // Verify single proposal submission rule
+      const existingProposal = await proposalsCollection.findOne({
+        taskId,
+        freelancerEmail,
+      });
+
+      if (existingProposal) {
+        return res.status(400).json({ error: "You have already submitted a proposal for this task" });
+      }
+
+      const newProposal = {
+        taskId,
+        freelancerEmail,
+        freelancerName: freelancerName || "Freelancer",
+        budgetPrice: Number(budgetPrice),
+        completionDays: Number(completionDays),
+        message,
+        status: "pending",
+        createdAt: new Date(),
+      };
+
+      const result = await proposalsCollection.insertOne(newProposal);
+      res.status(201).json({ message: "Proposal submitted successfully", proposalId: result.insertedId });
+    } catch (error) {
+      console.error("Error submitting proposal:", error);
+      res.status(500).json({ error: "Failed to submit proposal" });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Get Proposals Sent by Logged-in Freelancer
+  // ----------------------------------------------------
+  router.get("/my-proposals", async (req, res) => {
+    try {
+      const email = req.query.freelancerEmail;
+      if (!email) {
+        return res.status(400).json({ error: "Freelancer email query is required" });
+      }
+
+      const proposalsCollection = db.collection("proposals");
+      const tasksCollection = db.collection("tasks");
+
+      const proposals = await proposalsCollection.find({ freelancerEmail: email }).sort({ createdAt: -1 }).toArray();
+
+      // Attach task title to each proposal item
+      const enrichedProposals = await Promise.all(
+        proposals.map(async (proposal) => {
+          let taskTitle = "General Project";
+          try {
+            const task = await tasksCollection.findOne({ _id: new ObjectId(proposal.taskId) });
+            if (task) taskTitle = task.title;
+          } catch {
+            // Task lookup failure fallback
+          }
+          return { ...proposal, taskTitle };
+        })
+      );
+
+      res.status(200).json(enrichedProposals);
+    } catch (error) {
+      console.error("Error fetching my proposals:", error);
+      res.status(500).json({ error: "Failed to fetch proposals list" });
+    }
+  });
+
+  // ----------------------------------------------------
+  //  Get Active/Completed Projects for Freelancer
+  // ----------------------------------------------------
+  router.get("/freelancer-projects", async (req, res) => {
+    try {
+      const email = req.query.email;
+      const tasksCollection = db.collection("tasks");
+
+      const projects = await tasksCollection
+        .find({
+          freelancerEmail: email,
+          status: { $in: ["in-progress", "completed"] },
+        })
+        .sort({ updatedAt: -1 })
+        .toArray();
+
+      res.status(200).json(projects);
+    } catch (error) {
+      console.error("Error fetching freelancer projects:", error);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  // ----------------------------------------------------
+  //  Submit Project Deliverable and Mark Completed
+  // ----------------------------------------------------
+  router.patch("/tasks/:id/deliver", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { deliverableUrl } = req.body;
+      const tasksCollection = db.collection("tasks");
+
+      const result = await tasksCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            deliverable_url: deliverableUrl,
+            status: "completed",
+            completedAt: new Date(),
+          },
+        }
+      );
+
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+
+      res.status(200).json({ message: "Deliverable submitted and project marked as completed" });
+    } catch (error) {
+      console.error("Error completing task:", error);
+      res.status(500).json({ error: "Failed to submit deliverable" });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Update Freelancer Profile Information
+  // ----------------------------------------------------
+  router.put("/freelancers/profile", async (req, res) => {
+    try {
+      const { email, name, image, skills, bio, hourlyRate } = req.body;
+      const usersCollection = db.collection("users");
+
+      const result = await usersCollection.updateOne(
+        { email },
+        {
+          $set: {
+            name,
+            image,
+            skills: Array.isArray(skills) ? skills : skills.split(",").map((s) => s.trim()),
+            bio,
+            hourlyRate: Number(hourlyRate),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true }
+      );
+
+      res.status(200).json({ message: "Profile updated successfully", result });
+    } catch (error) {
+      console.error("Error updating freelancer profile:", error);
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
   return router;
 }
 

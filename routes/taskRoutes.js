@@ -744,6 +744,50 @@ function taskRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
     }
   });
 
+  // ----------------------------------------------------
+  // Public Featured Tasks Endpoint for Home Page
+  // ----------------------------------------------------
+  router.get("/public/featured-tasks", async (req, res) => {
+    try {
+      const latestTasks = await tasksCollection
+        .find({ status: "open" })
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .toArray();
+      res.json(latestTasks);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch featured tasks" });
+    }
+  });
+
+  // ----------------------------------------------------
+  // Public Top Freelancers Endpoint for Home Page
+  // ----------------------------------------------------
+  router.get("/public/top-freelancers", async (req, res) => {
+    try {
+      const topFreelancers = await usersCollection
+        .find({ role: "freelancer", isBlocked: { $ne: true } })
+        .limit(4)
+        .toArray();
+
+      // Transform and ensure rating/completedJobs fields exist
+      const formatted = topFreelancers.map((f) => ({
+        _id: f._id,
+        name: f.name || "Specialist",
+        email: f.email,
+        image: f.image || "",
+        skills: f.skills || "Web Development, UI/UX, Node.js",
+        rating: f.rating || 4.9,
+        completedJobs: f.completedJobs || 12,
+        hourlyRate: f.hourlyRate || 35,
+      }));
+
+      res.json(formatted);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch top freelancers" });
+    }
+  });
+
   return router;
 }
 

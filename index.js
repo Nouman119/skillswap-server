@@ -12,7 +12,8 @@ app.use(cors({
   origin: [process.env.CLIENT_URL || 'http://localhost:3000'],
   credentials: true
 }));
-app.use(cookieParser());app.use(express.json());
+app.use(cookieParser());
+app.use(express.json());
 
 // MongoDB Connection URI
 const uri = process.env.MONGODB_URI;
@@ -27,7 +28,6 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server
     await client.connect();
 
     // Database and Collections
@@ -61,23 +61,27 @@ async function run() {
 
     await seedAdmin();
 
-    // Register user routes
+    // ----------------------------------------------------
+    // Clean Route Registrations (Single Execution Pass)
+    // ----------------------------------------------------
+
+    // User routes
     const userRoutes = require('./routes/userRoutes')(usersCollection);
     app.use('/api/users', userRoutes);
 
-    // Register task routes with all required collections
-    const taskRoutes = require('./routes/taskRoutes')(tasksCollection, proposalsCollection, paymentsCollection);
+    // Task routes with users and proposals collections
+    const taskRoutes = require('./routes/taskRoutes')(tasksCollection, usersCollection, proposalsCollection, paymentsCollection);
     app.use('/api/tasks', taskRoutes);
 
-    // Register payment routes
+    // Payment routes
     const paymentRoutes = require('./routes/paymentRoutes')(tasksCollection, proposalsCollection, paymentsCollection);
     app.use('/api/payments', paymentRoutes);
 
-    // Register review routes
+    // Review routes
     const reviewRoutes = require('./routes/reviewRoutes')(reviewsCollection, tasksCollection);
     app.use('/api/reviews', reviewRoutes);
 
-    // Ping to confirm a successful connection
+    // Ping to confirm deployment
     await database.command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } catch (error) {

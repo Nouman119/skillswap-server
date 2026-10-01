@@ -62,22 +62,33 @@ async function run() {
     await seedAdmin();
 
     // ----------------------------------------------------
-    // Clean Route Registrations (Single Execution Pass)
+    // Clean Modular Route Registrations
     // ----------------------------------------------------
 
-    // User routes
+    // 1. User Authentication & Profile Routes
     const userRoutes = require('./routes/userRoutes')(usersCollection);
     app.use('/api/users', userRoutes);
 
-    // Task routes with users and proposals collections
-    const taskRoutes = require('./routes/taskRoutes')(tasksCollection, usersCollection, proposalsCollection, paymentsCollection);
+    // 2. Task Core Routes (Browse open tasks, my-tasks, create, edit, delete, featured)
+    const taskRoutes = require('./routes/taskRoutes')(tasksCollection, proposalsCollection);
     app.use('/api/tasks', taskRoutes);
 
-    // Payment routes
+    // 3. Proposal Routes (Submit bids, accept-and-pay, reject, deliverable submit)
+    const proposalRoutes = require('./routes/proposalRoutes')(tasksCollection, proposalsCollection, paymentsCollection);
+    app.use('/api/tasks', proposalRoutes);
+
+    // 4. Freelancer Module (Top freelancers, update profile, stats, earnings, projects)
+    const freelancerRoutes = require('./routes/freelancerRoutes')(usersCollection, tasksCollection, proposalsCollection);
+    app.use('/api/tasks', freelancerRoutes);
+
+    // 5. Admin Dashboard Routes (Stats, manage users, block/unblock)
+    const adminRoutes = require('./routes/adminRoutes')(usersCollection, tasksCollection, paymentsCollection);
+    app.use('/api/admin', adminRoutes);
+
+    // 6. Payment & Review Routes
     const paymentRoutes = require('./routes/paymentRoutes')(tasksCollection, proposalsCollection, paymentsCollection);
     app.use('/api/payments', paymentRoutes);
 
-    // Review routes
     const reviewRoutes = require('./routes/reviewRoutes')(reviewsCollection, tasksCollection);
     app.use('/api/reviews', reviewRoutes);
 

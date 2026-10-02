@@ -47,33 +47,6 @@ module.exports = (tasksCollection, proposalsCollection) => {
     }
   });
 
-  // Create a new task
-  router.post('/', async (req, res) => {
-    try {
-      const { title, category, description, budget, deadline, clientEmail, clientName } = req.body;
-      if (!title || !category || !budget || !clientEmail) {
-        return res.status(400).send({ error: 'Required fields are missing' });
-      }
-
-      const newTask = {
-        title,
-        category,
-        description,
-        budget: Number(budget),
-        deadline,
-        clientEmail,
-        clientName: clientName || 'Client',
-        status: 'open',
-        createdAt: new Date(),
-      };
-
-      const result = await tasksCollection.insertOne(newTask);
-      res.status(201).send({ success: true, insertedId: result.insertedId });
-    } catch (error) {
-      res.status(500).send({ error: error.message });
-    }
-  });
-
   // Client's posted tasks
   router.get('/my-tasks', async (req, res) => {
     try {
@@ -107,11 +80,67 @@ module.exports = (tasksCollection, proposalsCollection) => {
     }
   });
 
+// ====================================================
+  // Get Single Task Details by ID (Safeguarded)
+  // ====================================================
+  router.get('/:id', async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      // যদি id ভ্যালিড MongoDB ObjectId না হয়, তবে এরর না দিয়ে পরবর্তী রাউটে (যেমন freelancerRoutes) পাঠিয়ে দাও
+      if (!ObjectId.isValid(id)) {
+        return next();
+      }
+
+      const task = await tasksCollection.findOne({ _id: new ObjectId(id) });
+      if (!task) {
+        return res.status(404).json({ error: 'Task not found' });
+      }
+
+      res.status(200).json(task);
+    } catch (error) {
+      console.error('Error fetching task by ID:', error);
+      res.status(500).json({ error: 'Failed to fetch task details' });
+    }
+  });
+
+  
+  // Create a new task
+  router.post('/', async (req, res) => {
+    try {
+      const { title, category, description, budget, deadline, clientEmail, clientName } = req.body;
+      if (!title || !category || !budget || !clientEmail) {
+        return res.status(400).send({ error: 'Required fields are missing' });
+      }
+
+      const newTask = {
+        title,
+        category,
+        description,
+        budget: Number(budget),
+        deadline,
+        clientEmail,
+        clientName: clientName || 'Client',
+        status: 'open',
+        createdAt: new Date(),
+      };
+
+      const result = await tasksCollection.insertOne(newTask);
+      res.status(201).send({ success: true, insertedId: result.insertedId });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
   // Edit task
   router.patch('/:id', async (req, res) => {
     try {
       const { id } = req.params;
       const { title, category, description, budget, deadline } = req.body;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ error: 'Invalid Task ID' });
+      }
 
       const task = await tasksCollection.findOne({ _id: new ObjectId(id) });
       if (!task) return res.status(404).send({ error: 'Task not found' });
@@ -131,6 +160,11 @@ module.exports = (tasksCollection, proposalsCollection) => {
   router.delete('/:id', async (req, res) => {
     try {
       const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ error: 'Invalid Task ID' });
+      }
+
       const acceptedProposal = await proposalsCollection.findOne({ taskId: id, status: 'accepted' });
       if (acceptedProposal) {
         return res.status(400).send({ error: 'Cannot delete task with an accepted proposal' });

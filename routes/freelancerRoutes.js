@@ -180,6 +180,34 @@ module.exports = (usersCollection, tasksCollection, proposalsCollection) => {
     }
   });
 
+  // ====================================================
+  // Get Single Freelancer Public Profile by ID
+  // ====================================================
+  router.get('/freelancers/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({ error: 'Invalid Freelancer ID' });
+      }
+
+      // usersCollection থেকে ফ্রিল্যান্সারের তথ্য খোঁজা
+      const freelancer = await usersCollection.findOne(
+        { _id: new ObjectId(id) },
+        { projection: { password: 0 } } // সিকিউরিটির জন্য পাসওয়ার্ড বাদ দিয়ে ডেটা পাঠানো
+      );
+
+      if (!freelancer) {
+        return res.status(404).json({ error: 'Freelancer profile not found' });
+      }
+
+      res.status(200).json(freelancer);
+    } catch (error) {
+      console.error('Error fetching freelancer profile:', error);
+      res.status(500).json({ error: 'Failed to fetch freelancer details' });
+    }
+  });
+
   // ----------------------------------------------------
   // Freelancer Earnings Breakdown
   // ----------------------------------------------------

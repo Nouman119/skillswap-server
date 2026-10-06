@@ -104,6 +104,36 @@ module.exports = (tasksCollection, proposalsCollection) => {
     }
   });
 
+  // ====================================================
+  // Submit Review & Rating for Completed Task
+  // ====================================================
+  router.patch('/tasks/:id/review', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { rating, review, clientEmail } = req.body;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ error: 'Invalid Task ID format' });
+      }
+
+      const result = await tasksCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { 
+          $set: { 
+            rating: Number(rating), 
+            review, 
+            reviewed: true, 
+            reviewedAt: new Date() 
+          } 
+        }
+      );
+
+      res.send({ success: true, modifiedCount: result.modifiedCount });
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
   
   // Create a new task
   router.post('/', async (req, res) => {

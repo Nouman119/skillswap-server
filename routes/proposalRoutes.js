@@ -277,6 +277,24 @@ module.exports = (tasksCollection, proposalsCollection, paymentsCollection) => {
     }
   });
 
+  // ====================================================
+  // Get Client Tasks for Completed / Active Management
+  // Endpoint: GET /api/tasks/client-tasks?email=client@email.com
+  // ====================================================
+  router.get('/client-tasks', async (req, res) => {
+    try {
+      const email = req.query.email;
+      if (!email) {
+        return res.status(400).send({ error: 'Client email is required' });
+      }
+
+      const tasks = await tasksCollection.find({ clientEmail: email }).toArray();
+      res.status(200).send(tasks);
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
+
     // ====================================================
   // Freelancer project
  

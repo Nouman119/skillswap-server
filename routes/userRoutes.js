@@ -42,23 +42,35 @@ module.exports = (usersCollection) => {
     }
   });
 
-  // ----------------------------------------------------
-  //  Update Freelancer Profile
+// ----------------------------------------------------
+  // Update User Profile (Supports Client & Freelancer)
   // ----------------------------------------------------
   router.patch('/profile', async (req, res) => {
     try {
-      const { email, name, image, skills, bio, hourlyRate } = req.body;
+      const { email, name, image, skills, bio, hourlyRate, phone, company } = req.body;
       if (!email) return res.status(400).send({ error: "User email is required" });
 
+      // Build update object dynamically based on provided fields
+      const updateFields = {
+        name,
+        bio,
+        updatedAt: new Date()
+      };
+
+      if (image !== undefined) updateFields.image = image;
+      if (phone !== undefined) updateFields.phone = phone;
+      if (company !== undefined) updateFields.company = company;
+
+      // Add freelancer specific fields if provided
+      if (skills !== undefined) {
+        updateFields.skills = Array.isArray(skills) ? skills : skills.split(',').map(s => s.trim());
+      }
+      if (hourlyRate !== undefined) {
+        updateFields.hourlyRate = Number(hourlyRate || 0);
+      }
+
       const updateDoc = {
-        $set: {
-          name,
-          image,
-          skills: Array.isArray(skills) ? skills : skills.split(',').map(s => s.trim()),
-          bio,
-          hourlyRate: Number(hourlyRate || 0),
-          updatedAt: new Date()
-        }
+        $set: updateFields
       };
 
       const result = await usersCollection.updateOne({ email }, updateDoc);
@@ -67,7 +79,7 @@ module.exports = (usersCollection) => {
       res.status(500).send({ error: error.message });
     }
   });
-
+  
   // ----------------------------------------------------
   //  Get Current User Profile Details
   // ----------------------------------------------------

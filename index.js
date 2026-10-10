@@ -4,10 +4,6 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion } = require('mongodb');
 
-// Import Better Auth instance and node handler
-const { auth } = require('./auth'); // Ensure auth.js is in the same directory
-const { toNodeHandler } = require("better-auth/node");
-
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -32,11 +28,6 @@ app.use(cors({
 
 app.use(cookieParser());
 app.use(express.json());
-
-// ----------------------------------------------------
-// Better Auth API Endpoint Mount
-// ----------------------------------------------------
-app.all("/api/auth/*", toNodeHandler(auth));
 
 // Basic health check route for Render
 app.get('/', (req, res) => {

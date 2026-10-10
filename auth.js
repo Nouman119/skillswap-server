@@ -10,7 +10,7 @@ if (!uri) {
 const client = new MongoClient(uri);
 const db = client.db();
 
-export const auth = betterAuth({
+const auth = betterAuth({
   database: mongodbAdapter(db),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || "https://skillswap-server-wgm3.onrender.com",
@@ -57,3 +57,5 @@ export const auth = betterAuth({
     },
   },
 });
+
+module.exports = { auth };

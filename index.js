@@ -36,8 +36,7 @@ app.use(express.json());
 // ----------------------------------------------------
 // Better Auth API Endpoint Mount
 // ----------------------------------------------------
-app.all("/api/auth/*", toNodeHandler(auth));
-
+app.all("/api/auth/*path", toNodeHandler(auth));
 // Basic health check route for Render
 app.get('/', (req, res) => {
   res.send('SkillSwap API Server is running successfully!');

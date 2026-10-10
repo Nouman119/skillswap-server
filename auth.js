@@ -19,9 +19,11 @@ const auth = betterAuth({
     "https://skillswap-client-five.vercel.app"
   ],
   
-  // Advanced cookie configurations to prevent cross-domain state_mismatch error
+  // Cross-domain cookie settings for Vercel & Render
   advanced: {
     useSecureCookies: true,
+    // Disable CSRF strict check if cross-origin requests block the state token
+    disableCSRFCheck: false, 
   },
   cookies: {
     sessionToken: {
@@ -31,6 +33,14 @@ const auth = betterAuth({
         httpOnly: true,
       },
     },
+    // Ensure state cookie also uses sameSite none for OAuth flow
+    state: {
+      attributes: {
+        sameSite: "none",
+        secure: true,
+        httpOnly: true,
+      },
+    }
   },
 
   emailAndPassword: {

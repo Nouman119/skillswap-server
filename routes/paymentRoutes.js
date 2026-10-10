@@ -5,6 +5,22 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 function paymentRoutes(tasksCollection, proposalsCollection, paymentsCollection) {
   const router = express.Router();
 
+  // ----------------------------------------------------
+  // GET: Fetch all payment transactions for Admin audit
+  // ----------------------------------------------------
+  router.get('/transactions', async (req, res) => {
+    try {
+      const transactions = await paymentsCollection
+        .find({})
+        .sort({ createdAt: -1 })
+        .toArray();
+      res.status(200).send(transactions);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      res.status(500).send({ error: error.message });
+    }
+  });
+
   // Create Stripe Checkout Session
   router.post('/create-checkout-session', async (req, res) => {
     try {
@@ -26,7 +42,7 @@ function paymentRoutes(tasksCollection, proposalsCollection, paymentsCollection)
                 name: taskTitle || "Task Assignment",
                 description: `Freelancer: ${freelancerName || freelancerEmail}`,
               },
-              unit_amount: Math.round(Number(amount) * 100), // Amount in cents
+              unit_amount: Math.round(Number(amount) * 100),
             },
             quantity: 1,
           },
@@ -59,7 +75,6 @@ function paymentRoutes(tasksCollection, proposalsCollection, paymentsCollection)
         return res.status(400).send({ error: "Session ID is required" });
       }
 
-      // Retrieve session directly from Stripe to double-check
       const session = await stripe.checkout.sessions.retrieve(sessionId);
 
       if (session.payment_status !== 'paid') {

@@ -45,5 +45,34 @@ module.exports = (usersCollection, tasksCollection, paymentsCollection) => {
     }
   });
 
+  // ====================================================
+  // Get Admin Dashboard Overview Statistics
+  // Endpoint: GET /api/tasks/admin/stats
+  // ====================================================
+  router.get('/admin/stats', async (req, res) => {
+    try {
+      // 1. Count total users
+      const totalUsers = await usersCollection.estimatedDocumentCount();
+
+      // 2. Count total tasks and active tasks
+      const totalTasks = await tasksCollection.estimatedDocumentCount();
+      const activeTasksCount = await tasksCollection.countDocuments({ status: 'in-progress' });
+
+      // 3. Calculate total revenue from payments collection
+      const payments = await paymentsCollection.find({}).toArray();
+      const totalRevenue = payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
+      res.status(200).send({
+        totalUsers,
+        totalTasks,
+        totalRevenue,
+        activeTasks: activeTasksCount,
+      });
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).send({ error: error.message });
+    }
+  });
+
   return router;
 };
